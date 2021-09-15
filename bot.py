@@ -16,7 +16,7 @@ CHANNEL = os.getenv('CHANNEL')
 intents = discord.Intents.default()
 intents.members = True
 bot = commands.Bot(command_prefix='$$', intents = intents)
-members = []
+members = ["redpalindrome", "wormdisco", "NotMudae"]
 text_channel: discord.TextChannel
 
 #### Values for marriage messages
@@ -62,16 +62,28 @@ async def get_claims(ctx):
     messages_content = list(m.content for m in bot_messages)
     
     members_married = []
+    members_with_claims = []
 
     for message in messages_content:
         if marriage_message in message:
             left = get_index(message, " ", 1)
             right = get_index(message, " ", 2)
             member = message[left:right]
-            members_married.append(member)
-            
-    if len(members_married) > 0:
-        await ctx.send(*members_married)
+            members_married.append(member.strip())
+
+    # Find anyone not in the list
+    #members_with_claims = [m for m in members if m not in set(members_married)]
+    members_with_claims = list(set(members) - set(members_married))
+    members_with_claims.sort()
+
+    s = "\n"
+
+    embed = discord.Embed(color=0x875d5d)
+    embed.title = "People with claims" 
+    embed.description = s.join(members_with_claims)
+
+    if len(members_with_claims) > 0:
+        await ctx.send(embed=embed)
     else:
         await ctx.send("Everyone's claimed for this interval!")
 
