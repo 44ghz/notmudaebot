@@ -3,33 +3,39 @@ import os
 import random
 import discord
 import time
+import threading
 
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from discord.ext import commands
 
+# Environment variables
 load_dotenv('.env')
-TOKEN = os.getenv('DISCORD_TOKEN')
-GUILD = os.getenv('GUILD')
-CHANNEL = os.getenv('CHANNEL')
+TOKEN = os.environ['DISCORD_TOKEN']
+GUILD = os.environ['GUILD']
+CHANNEL = os.environ['CHANNEL']
+FILTER_INACTIVE = bool(os.environ['FILTER_INACTIVE'])
 
+client = discord.Client()
 intents = discord.Intents.default()
 intents.members = True
 bot = commands.Bot(command_prefix='$$', intents = intents)
-members = []
-text_channel: discord.TextChannel
 
-#### Values for marriage messages
+#### Global values
 
+confirmation_emoji = "👍"
 marriage_message = "are now married"
-marriage_message_separator = " and "
-emoji_for_marriage = ":sparkling_heart:"
-emoji_length_for_marriage = len(emoji_for_marriage) + 1 # Add 1 for space after emoji
+members = []
+inactive_users = ["danox574", "Supedo no Esu", "JayRoss13" ]
+text_channel: discord.TextChannel
 
 ####
 
 @bot.event
 async def on_ready():
+    global FILTER_INACTIVE
+
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="it's called anime dad"))
     for guild in bot.guilds:
         if int(guild.id) == int(GUILD):
             global members
@@ -37,11 +43,30 @@ async def on_ready():
         for channel in guild.text_channels:
             if int(channel.id) == int(CHANNEL):
                 global text_channel
-                text_channel = channel
+                text_channel = channel 
 
     print("NotMudae is connected to Discord!")
 
-@bot.command(name='cl', help="The shortened version of the $$claims command", case_insensitive=True)
+@bot.command(name="ti", help="Shortened version of the " + str(bot.command_prefix) + "inactive command")
+async def ti(ctx):
+    await toggle_inactive_users(ctx)
+
+@bot.command(name='inactive', help="Filter out users from claims and rolls information that haven't sent a message in the past 24 hours", case_insensitive=True)
+async def toggle_inactive_users(ctx):
+    global FILTER_INACTIVE
+
+    FILTER_INACTIVE = not FILTER_INACTIVE
+
+    inclusion = "included"
+
+    if (FILTER_INACTIVE):
+        inclusion = "excluded"
+
+    os.environ["FILTER_INACTIVE"] = str(FILTER_INACTIVE)
+
+    await ctx.send("Inactive users " + inclusion)
+
+@bot.command(name='cl', help="The shortened version of the " + str(bot.command_prefix) + "claims command", case_insensitive=True)
 async def get_claims_short(ctx):
     await get_claims(ctx)
 
@@ -49,6 +74,8 @@ async def get_claims_short(ctx):
 @bot.command(name='claims', help="See who has claims left on this rotation", case_insensitive=True)
 async def get_claims(ctx):
     global text_channel
+    global FILTER_INACTIVE
+
     async with text_channel.typing():
         now = datetime.utcnow()
 
@@ -81,6 +108,10 @@ async def get_claims(ctx):
 
         # Find anyone not in the list
         members_with_claims = list(set(members) - set(members_married))
+
+        if (FILTER_INACTIVE):
+            members_with_claims = list(set(members_with_claims) - set(inactive_users))
+
         members_with_claims = sorted(members_with_claims, key = str.casefold)
 
         s = "\n"
