@@ -18,18 +18,33 @@ FILTER_INACTIVE = bool(os.environ['FILTER_INACTIVE'])
 
 client = discord.Client()
 intents = discord.Intents.default()
+intents.messages = True
 intents.members = True
 bot = commands.Bot(command_prefix='$$', intents = intents)
 
+
 #### Global values
 
-confirmation_emoji = "👍"
 marriage_message = "are now married"
+# Represents the claim intervals at UTC
+interval_dict = { 
+    0: [],
+    3: [],
+    6: [],
+    9: [],
+    12: [],
+    15: [],
+    18: [],
+    21: []
+}
 members = []
+members_with_claims = []
 inactive_users = ["danox574", "Supedo no Esu", "JayRoss13" ]
 text_channel: discord.TextChannel
+past_window: 0
 
 ####
+
 
 @bot.event
 async def on_ready():
@@ -45,11 +60,47 @@ async def on_ready():
                 global text_channel
                 text_channel = channel 
 
+    print("Getting historical claims")
+
+    await check_claims_in_interval()
+    print(*members_with_claims)
+
     print("NotMudae is connected to Discord!")
+
+
+@bot.event
+async def on_message(ctx):
+    global members_with_claims
+    global past_window
+
+    if int(ctx.channel.id) != int(CHANNEL):
+        return
+
+    message = ctx.content
+    if marriage_message not in message:
+        await bot.process_commands(ctx)
+        return
+
+    now = datetime.utcnow()
+    difference = now.time().hour % 3
+
+    # Get the difference, subtract it from the current hour to get the interval for the dictionary
+    window_hour = now.hour - difference
+
+    # If the interval has switched, clear out the previous list and set the new window
+    if window_hour != past_window:
+        interval_dict[past_window].clear()
+        past_window = window_hour
+
+    interval_dict[window_hour].append(extract_name(message))
+
+    await bot.process_commands(ctx)
+
 
 @bot.command(name="ti", help="Shortened version of the " + str(bot.command_prefix) + "inactive command")
 async def ti(ctx):
     await toggle_inactive_users(ctx)
+
 
 @bot.command(name='inactive', help="Filter out users from claims and rolls information that haven't sent a message in the past 24 hours", case_insensitive=True)
 async def toggle_inactive_users(ctx):
@@ -66,64 +117,90 @@ async def toggle_inactive_users(ctx):
 
     await ctx.send("Inactive users " + inclusion)
 
+
 @bot.command(name='cl', help="The shortened version of the " + str(bot.command_prefix) + "claims command", case_insensitive=True)
 async def get_claims_short(ctx):
     await get_claims(ctx)
 
+
 # Construct response from claims messages
 @bot.command(name='claims', help="See who has claims left on this rotation", case_insensitive=True)
 async def get_claims(ctx):
+    global members_with_claims
+
+    now = datetime.utcnow()
+    difference = now.time().hour % 3
+
+    # Get the difference, subtract it from the current hour to get the interval for the dictionary
+    window_hour = now.hour - difference
+
+    # Find anyone not in the list
+    members_with_claims = list(set(members) - set(interval_dict[now.hour - difference]))
+
+    if (FILTER_INACTIVE):
+        members_with_claims = list(set(members_with_claims) - set(inactive_users))
+
+    members_with_claims = sorted(members_with_claims, key = str.casefold)
+
+    s = "\n"
+
+    embed = discord.Embed(color=0x875d5d)
+    embed.title = "People with claims" 
+    embed.description = s.join(members_with_claims)
+
+    if len(members_with_claims) > 0:
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send("Everyone's claimed for this interval!")
+
+
+async def check_claims_in_interval():
     global text_channel
     global FILTER_INACTIVE
+    global members_with_claims
+    global past_window
 
-    async with text_channel.typing():
-        now = datetime.utcnow()
+    now = datetime.utcnow()
 
-        # In UTC, the claim intervals are every 3 hours and the hours at which claims reset are a multiple of 3 (6:23 AM UTC, 9:23 AM UTC, etc)
-        # Finding the modulo of that will give us the amount of hours that have passed since the previous rotation
-        difference = now.time().hour % 3
+    # In UTC, the claim intervals are every 3 hours and the hours at which claims reset are a multiple of 3 (6:23 AM UTC, 9:23 AM UTC, etc)
+    # Finding the modulo of that will give us the amount of hours that have passed since the previous rotation
+    difference = now.time().hour % 3
 
-        # if the difference is 0 but the minutes are less than 23, use the previous interval (subtract 3)
-        if difference == 0 and now.minute < 23:
-            difference = 3
+    # if the difference is 0 but the minutes are less than 23, use the previous interval (subtract 3)
+    if difference == 0 and now.minute < 23:
+        difference = 3
 
-        interval_difference = datetime.utcnow() + timedelta(hours = difference * -1)
-        window = datetime(interval_difference.year, interval_difference.month, interval_difference.day, interval_difference.hour, 23)
+    interval_difference = datetime.utcnow() + timedelta(hours = difference * -1)
+    window = datetime(interval_difference.year, interval_difference.month, interval_difference.day, interval_difference.hour, 23)
 
-        messages = await text_channel.history(limit = 3000, after = window, oldest_first = True).flatten()
+    messages = await text_channel.history(limit = 3000, after = window, oldest_first = True).flatten()
 
-        bot_messages = list(filter(lambda m: m.author.bot == True, messages))
-        #messages_content = list(([m.content, m.created_at] for m in bot_messages)) uncomment for multiple attributes if needed
-        messages_content = list(m.content for m in bot_messages)
-    
-        members_married = []
-        members_with_claims = []
+    bot_messages = list(filter(lambda m: m.author.bot == True, messages))
+    #messages_content = list(([m.content, m.created_at] for m in bot_messages)) uncomment for multiple attributes if needed
+    messages_content = list(m.content for m in bot_messages)
 
-        for message in messages_content:
-            if marriage_message in message:
-                left = get_index(message, "**", 1) + 2 # Add two for bold markdown
-                right = get_index(message, "**", 2)
-                member = message[left:right]
-                members_married.append(member.strip())
+    dict_window = now.hour - difference
 
-        # Find anyone not in the list
-        members_with_claims = list(set(members) - set(members_married))
+    for message in messages_content:
+        if marriage_message in message:
+            interval_dict[dict_window].append(extract_name(message))
 
-        if (FILTER_INACTIVE):
-            members_with_claims = list(set(members_with_claims) - set(inactive_users))
+    past_window = dict_window
 
-        members_with_claims = sorted(members_with_claims, key = str.casefold)
+    # Find anyone not in the list
+    members_with_claims = list(set(members) - set(interval_dict[dict_window]))
 
-        s = "\n"
+    if (FILTER_INACTIVE):
+        members_with_claims = list(set(members_with_claims) - set(inactive_users))
 
-        embed = discord.Embed(color=0x875d5d)
-        embed.title = "People with claims" 
-        embed.description = s.join(members_with_claims)
+    members_with_claims = sorted(members_with_claims, key = str.casefold)
 
-        if len(members_with_claims) > 0:
-            await ctx.send(embed=embed)
-        else:
-            await ctx.send("Everyone's claimed for this interval!")
+
+def extract_name(message):
+    left = get_index(message, "**", 1) + 2 # Add two for bold markdown
+    right = get_index(message, "**", 2)
+    member = message[left:right]
+    return member.strip()
 
 
 def get_index(input_string, sub_string, ordinal):
@@ -132,5 +209,6 @@ def get_index(input_string, sub_string, ordinal):
         current = input_string.index(sub_string, current + 1)
 
     return current
+
 
 bot.run(TOKEN)
