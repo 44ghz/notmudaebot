@@ -88,7 +88,7 @@ async def on_message(ctx):
     window_hour = now.hour - difference
 
     # If the interval has switched, clear out the previous list and set the new window
-    if window_hour != past_window:
+    if window_hour != past_window and now.minute >= 23:
         interval_dict[past_window].clear()
         past_window = window_hour
 
