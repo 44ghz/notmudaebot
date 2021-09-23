@@ -85,12 +85,15 @@ async def on_message(ctx):
     difference = now.time().hour % 3
 
     # Get the difference, subtract it from the current hour to get the interval for the dictionary
-    window_hour = now.hour - difference
+    if now.minute >= 23:
+        window_hour = now.hour - difference
 
-    # If the interval has switched, clear out the previous list and set the new window
-    if window_hour != past_window and now.minute >= 23:
-        interval_dict[past_window].clear()
-        past_window = window_hour
+        # If the interval has switched, clear out the previous list and set the new window
+        if window_hour != past_window:
+            interval_dict[past_window].clear()
+            past_window = window_hour
+    else:
+        window_hour = past_window
 
     interval_dict[window_hour].append(extract_name(message))
 
