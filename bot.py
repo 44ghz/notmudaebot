@@ -41,7 +41,8 @@ members = []
 members_with_claims = []
 inactive_users = ["danox574", "Supedo no Esu", "JayRoss13" ]
 text_channel: discord.TextChannel
-past_window: 0
+past_window = 0
+interval_reset_minute = 23
 
 ####
 
@@ -85,15 +86,16 @@ async def on_message(ctx):
     difference = now.time().hour % 3
 
     # Get the difference, subtract it from the current hour to get the interval for the dictionary
-    if now.minute >= 23:
-        window_hour = now.hour - difference
+    window_hour = now.hour - difference
 
+    # If in the hour of the new claim interval but haven't hit the reset yet
+    if difference == 0 and now.minute < interval_reset_minute:
+        window_hour = past_window
+    else:
         # If the interval has switched, clear out the previous list and set the new window
         if window_hour != past_window:
             interval_dict[past_window].clear()
             past_window = window_hour
-    else:
-        window_hour = past_window
 
     interval_dict[window_hour].append(extract_name(message))
 
@@ -134,6 +136,9 @@ async def get_claims(ctx):
     now = datetime.utcnow()
     difference = now.time().hour % 3
 
+    if difference == 0 and now.minute < interval_reset_minute:
+        difference = 3
+
     # Get the difference, subtract it from the current hour to get the interval for the dictionary
     window_hour = now.hour - difference
 
@@ -148,12 +153,14 @@ async def get_claims(ctx):
     s = "\n"
 
     embed = discord.Embed(color=0x875d5d)
-    embed.title = "People with claims" 
+    embed.title = "People with :clam:" 
     embed.description = s.join(members_with_claims)
 
     if len(members_with_claims) > 0:
+        #print(*members_with_claims)
         await ctx.send(embed=embed)
     else:
+        #print("All claimed")
         await ctx.send("Everyone's claimed for this interval!")
 
 
@@ -165,16 +172,16 @@ async def check_claims_in_interval():
 
     now = datetime.utcnow()
 
-    # In UTC, the claim intervals are every 3 hours and the hours at which claims reset are a multiple of 3 (6:23 AM UTC, 9:23 AM UTC, etc)
+    # In UTC, the claim intervals are every 3 hours and the hours at which claims reset are a multiple of 3 (6:interval_reset_minute AM UTC, 9:interval_reset_minute AM UTC, etc)
     # Finding the modulo of that will give us the amount of hours that have passed since the previous rotation
     difference = now.time().hour % 3
 
-    # if the difference is 0 but the minutes are less than 23, use the previous interval (subtract 3)
-    if difference == 0 and now.minute < 23:
+    # if the difference is 0 but the minutes are less than interval_reset_minute, use the previous interval (subtract 3)
+    if difference == 0 and now.minute < interval_reset_minute:
         difference = 3
 
     interval_difference = datetime.utcnow() + timedelta(hours = difference * -1)
-    window = datetime(interval_difference.year, interval_difference.month, interval_difference.day, interval_difference.hour, 23)
+    window = datetime(interval_difference.year, interval_difference.month, interval_difference.day, interval_difference.hour, interval_reset_minute)
 
     messages = await text_channel.history(limit = 3000, after = window, oldest_first = True).flatten()
 
