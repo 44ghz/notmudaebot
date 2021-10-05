@@ -142,8 +142,11 @@ async def get_claims(ctx):
     # Get the difference, subtract it from the current hour to get the interval for the dictionary
     window_hour = now.hour - difference
 
+    if (window_hour < 0):
+        window_hour = 0
+
     # Find anyone not in the list
-    members_with_claims = list(set(members) - set(interval_dict[now.hour - difference]))
+    members_with_claims = list(set(members) - set(interval_dict[window_hour]))
 
     if (FILTER_INACTIVE):
         members_with_claims = list(set(members_with_claims) - set(inactive_users))
@@ -190,6 +193,9 @@ async def check_claims_in_interval():
     messages_content = list(m.content for m in bot_messages)
 
     dict_window = now.hour - difference
+
+    if (dict_window < 0):
+        dict_window = 0
 
     for message in messages_content:
         if marriage_message in message:
