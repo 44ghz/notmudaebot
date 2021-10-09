@@ -29,7 +29,7 @@ marriage_message = "are now married"
 members = []
 members_with_claims = []
 members_married = []
-inactive_users = ["danox574", "Supedo no Esu", "JayRoss13" ]
+inactive_users = ["burntLinoleum", "danox574", "Supedo no Esu", "JayRoss13" ]
 text_channel: discord.TextChannel
 interval_reset_minute = 23
 interval_reset_hour = 3
