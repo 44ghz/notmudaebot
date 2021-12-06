@@ -82,15 +82,19 @@ async def on_message(ctx):
     global interval_tracker
 
     now = datetime.utcnow()
+    new_interval = False
 
     if int(ctx.channel.id) != int(CHANNEL):
         return
 
-    if now.hour > interval_tracker:
+    if now.hour > interval_tracker or (interval_tracker == 24 and now.hour == 0):
         interval_tracker = now.hour
+        new_interval = True
 
     # If the current hour matches a reset interval
-    if interval_tracker in reset_intervals and now.minute >= interval_reset_minute:
+    if interval_tracker in reset_intervals and now.minute >= interval_reset_minute and new_interval:
+        print("Clearing list")
+        new_interval = False
         members_married.clear()
 
     message = ctx.content
@@ -202,7 +206,7 @@ def get_interval():
                     return reset_intervals[i - 1]
 
             else:
-                return reset_intervals[i]
+                return now.hour
 
     print("Error finding interval")
 
