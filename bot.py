@@ -87,7 +87,8 @@ async def on_message(ctx):
     if int(ctx.channel.id) != int(CHANNEL):
         return
 
-    if now.hour > interval_tracker or (interval_tracker == 24 and now.hour == 0):
+    if now.hour > interval_tracker or (interval_tracker == 24 and now.hour == 1):
+        print("New interval. Time: " + str(now))
         interval_tracker = now.hour
         new_interval = True
 
@@ -112,11 +113,15 @@ async def set_historical_claims():
     global FILTER_INACTIVE
     global members_with_claims
     global marriage_messages
+    global interval_tracker
 
     now = datetime.utcnow()
+    day = now.day
     interval_hour = get_interval()
+    if interval_hour == reset_intervals[len(reset_intervals) - 1]:
+        day = (now + timedelta(days = -1)).day
     print("Interval hour: " + str(interval_hour))
-    window = datetime(now.year, now.month, now.day, interval_hour, interval_reset_minute)
+    window = datetime(now.year, now.month, day, interval_hour, interval_reset_minute)
     print("Window: " + str(window))
 
     messages = await text_channel.history(limit = 4000, after = window, oldest_first = True).flatten()
