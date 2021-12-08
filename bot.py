@@ -118,7 +118,7 @@ async def set_historical_claims():
     now = datetime.utcnow()
     day = now.day
     interval_hour = get_interval()
-    if interval_hour == reset_intervals[len(reset_intervals) - 1]:
+    if interval_hour == reset_intervals[len(reset_intervals) - 1] and now.hour == 0:
         day = (now + timedelta(days = -1)).day
     print("Interval hour: " + str(interval_hour))
     window = datetime(now.year, now.month, day, interval_hour, interval_reset_minute)
