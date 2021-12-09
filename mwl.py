@@ -12,10 +12,6 @@ def make_request(type, url, data = {}):
     session.headers.update({'apiKey': str(API_KEY)})
 
     response = ""
-
-    print("type: " + type)
-    print("json: " + str(data))
-    print("url: " + str(api_uri + url))
     
     if type == "get":
         response = session.get(api_uri + url)

@@ -186,6 +186,43 @@ async def get_waifu_age(ctx, *args):
     await ctx.send(embed=embed)
 
 
+@bot.command(name='agem', help="Get the age of a husbando", case_insensitive=True)
+async def get_husbando_age(ctx, *args):
+    s = " "
+    char = s.join(args)
+    search_results = mwl.search_character("male", char)
+
+    if len(search_results["data"]) == 0:
+        await ctx.send("Character not found!")
+        return;
+
+    id = search_results["data"][0]["id"]
+    char_info = mwl.get_character("male", id)
+
+    color = ""
+
+    # add birthday if no age?
+    age = char_info["data"]["age"]
+    name = char_info["data"]["name"]
+    image_link = char_info["data"]["display_picture"]
+
+    if age is None:
+        age = "Unknown"
+        color = 0x636363
+    elif age < 16:
+        color = 0xa14242
+    elif 16 <= int(age) < 18:
+        color = 0xbaba5f
+    else:
+        color = 0x34823c
+
+    embed = discord.Embed(color=color)
+    embed.title = name + " - Age: " + str(age)
+    embed.set_image(url=str(image_link))
+
+    await ctx.send(embed=embed)
+
+
 def get_interval():
     global interval_reset_minute
     global reset_intervals
