@@ -4,10 +4,11 @@ import random
 import discord
 import time
 import threading
-
 from datetime import datetime, timedelta, timezone
-from dotenv import load_dotenv
 from discord.ext import commands
+from dotenv import load_dotenv
+
+import mwl
 
 # Environment variables
 load_dotenv('.env')
@@ -77,26 +78,13 @@ async def on_message(ctx):
     global members_with_claims
     global members_married
     global marriage_messages
-    global new_interval
     global now
-    global interval_tracker
 
     now = datetime.utcnow()
     new_interval = False
 
-    if int(ctx.channel.id) != int(CHANNEL):
+    if int(ctx.guild.id) != int(GUILD):
         return
-
-    if now.hour > interval_tracker or (interval_tracker == 24 and now.hour == 1):
-        print("New interval. Time: " + str(now))
-        interval_tracker = now.hour
-        new_interval = True
-
-    # If the current hour matches a reset interval
-    if interval_tracker in reset_intervals and now.minute >= interval_reset_minute and new_interval:
-        print("Clearing list")
-        new_interval = False
-        members_married.clear()
 
     message = ctx.content
     for marriage_message in marriage_messages:
@@ -104,6 +92,7 @@ async def on_message(ctx):
             name = extract_name(message)
             print("Adding " + name)
             members_married.append(name)
+            await set_historical_claims()
 
     await bot.process_commands(ctx)
 
@@ -113,15 +102,14 @@ async def set_historical_claims():
     global FILTER_INACTIVE
     global members_with_claims
     global marriage_messages
-    global interval_tracker
+    global members_married
 
     now = datetime.utcnow()
-    day = now.day
     interval_hour = get_interval()
     if interval_hour == reset_intervals[len(reset_intervals) - 1] and now.hour == 0:
         day = (now + timedelta(days = -1)).day
     print("Interval hour: " + str(interval_hour))
-    window = datetime(now.year, now.month, day, interval_hour, interval_reset_minute)
+    window = datetime(now.year, now.month, now.day, interval_hour, interval_reset_minute)
     print("Window: " + str(window))
 
     messages = await text_channel.history(limit = 4000, after = window, oldest_first = True).flatten()
@@ -130,7 +118,7 @@ async def set_historical_claims():
     #messages_content = list(([m.content, m.created_at] for m in bot_messages)) uncomment for multiple attributes if needed
     messages_content = list(m.content for m in bot_messages)
 
-    #print(*messages_content)
+    members_married.clear()
 
     for message in messages_content:
         for marriage_message in marriage_messages:
@@ -161,25 +149,41 @@ async def print_claims(ctx):
         await ctx.send("Everyone's claimed for this interval!")
 
 
-@bot.command(name="ti", help="Shortened version of the " + str(bot.command_prefix) + "inactive command")
-async def ti(ctx):
-    await toggle_inactive_users(ctx)
+@bot.command(name='agef', help="Get the age of a waifu", case_insensitive=True)
+async def get_waifu_age(ctx, *args):
+    s = " "
+    char = s.join(args)
+    search_results = mwl.search_character("female", char)
 
+    if len(search_results["data"]) == 0:
+        await ctx.send("Character not found!")
+        return;
 
-@bot.command(name='inactive', help="Filter out users from claims and rolls information that haven't sent a message in the past 24 hours", case_insensitive=True)
-async def toggle_inactive_users(ctx):
-    global FILTER_INACTIVE
+    id = search_results["data"][0]["id"]
+    char_info = mwl.get_character("female", id)
 
-    FILTER_INACTIVE = not FILTER_INACTIVE
+    color = ""
 
-    inclusion = "included"
+    # add birthday if no age?
+    age = char_info["data"]["age"]
+    name = char_info["data"]["name"]
+    image_link = char_info["data"]["display_picture"]
 
-    if (FILTER_INACTIVE):
-        inclusion = "excluded"
+    if age is None:
+        age = "Unknown"
+        color = 0x636363
+    elif age < 16:
+        color = 0xa14242
+    elif 16 <= int(age) < 18:
+        color = 0xbaba5f
+    else:
+        color = 0x34823c
 
-    os.environ["FILTER_INACTIVE"] = str(FILTER_INACTIVE)
+    embed = discord.Embed(color=color)
+    embed.title = name + " - Age: " + str(age)
+    embed.set_image(url=str(image_link))
 
-    await ctx.send("Inactive users " + inclusion)
+    await ctx.send(embed=embed)
 
 
 def get_interval():
@@ -216,6 +220,16 @@ def get_interval():
     print("Error finding interval")
 
 
+def get_claims():
+    # Find anyone not in the list
+    members_with_claims = list(set(members) - set(members_married))
+
+    if (FILTER_INACTIVE):
+        members_with_claims = list(set(members_with_claims) - set(inactive_users))
+
+    return sorted(members_with_claims, key = str.casefold)
+
+
 def extract_name(message):
     left = get_index(message, "**", 1) + 2 # Add two for bold markdown
     right = get_index(message, "**", 2)
@@ -231,14 +245,25 @@ def get_index(input_string, sub_string, ordinal):
     return current
 
 
-def get_claims():
-    # Find anyone not in the list
-    members_with_claims = list(set(members) - set(members_married))
+@bot.command(name="ti", help="Shortened version of the " + str(bot.command_prefix) + "inactive command")
+async def ti(ctx):
+    await toggle_inactive_users(ctx)
+
+
+@bot.command(name='inactive', help="Filter out users from claims and rolls information that haven't sent a message in the past 24 hours", case_insensitive=True)
+async def toggle_inactive_users(ctx):
+    global FILTER_INACTIVE
+
+    FILTER_INACTIVE = not FILTER_INACTIVE
+
+    inclusion = "included"
 
     if (FILTER_INACTIVE):
-        members_with_claims = list(set(members_with_claims) - set(inactive_users))
+        inclusion = "excluded"
 
-    return sorted(members_with_claims, key = str.casefold)
+    os.environ["FILTER_INACTIVE"] = str(FILTER_INACTIVE)
+
+    await ctx.send("Inactive users " + inclusion)
 
 
 bot.run(TOKEN)
