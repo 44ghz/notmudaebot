@@ -106,10 +106,13 @@ async def set_historical_claims():
 
     now = datetime.utcnow()
     interval_hour = get_interval()
-    if interval_hour == reset_intervals[len(reset_intervals) - 1] and now.hour == 0:
+    day = now.day
+
+    if (interval_hour == reset_intervals[len(reset_intervals) - 1] and now.hour == 0) or (now.hour == reset_intervals[0] and now.minute < interval_reset_minute):
+        print("Day rolled over")
         day = (now + timedelta(days = -1)).day
-    print("Interval hour: " + str(interval_hour))
-    window = datetime(now.year, now.month, now.day, interval_hour, interval_reset_minute)
+
+    window = datetime(now.year, now.month, day, interval_hour, interval_reset_minute)
     print("Window: " + str(window))
 
     messages = await text_channel.history(limit = 4000, after = window, oldest_first = True).flatten()
@@ -149,6 +152,10 @@ async def print_claims(ctx):
         await ctx.send("Everyone's claimed for this interval!")
 
 
+@bot.command(name='af', help="Get the age of a waifu, but with less work", case_insensitive=True)
+async def get_waifu_age_short(ctx, *args):
+    await get_waifu_age(ctx, *args)
+
 @bot.command(name='agef', help="Get the age of a waifu", case_insensitive=True)
 async def get_waifu_age(ctx, *args):
     s = " "
@@ -184,6 +191,11 @@ async def get_waifu_age(ctx, *args):
     embed.set_image(url=str(image_link))
 
     await ctx.send(embed=embed)
+
+
+@bot.command(name='am', help="Get the age of a husbando, but with less work", case_insensitive=True)
+async def get_husbando_age_short(ctx, *args):
+    await get_husbando_age(ctx, *args)
 
 
 @bot.command(name='agem', help="Get the age of a husbando", case_insensitive=True)
@@ -238,7 +250,10 @@ def get_interval():
 
         # Once we reach an interval that's greater than the current time, we're in the right interval
         if now.hour < reset_intervals[i]:
-            return reset_intervals[i - 1]
+            if now.hour == 0:
+                return reset_intervals[len(reset_intervals) - 1]
+            else:
+                return reset_intervals[i - 1]
 
         elif now.hour > 22:
             return reset_intervals[len(reset_intervals) - 1]

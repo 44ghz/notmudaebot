@@ -29,6 +29,9 @@ def make_request(type, url, data = {}):
 
 
 def search_character(gender, name):
+    if name is None:
+        return
+
     object = {
         "term":str(name)
     }
